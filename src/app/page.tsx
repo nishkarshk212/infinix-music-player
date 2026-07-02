@@ -81,52 +81,6 @@ export default function InfinityMusicPlayer() {
     }
   }, [searchQuery, activeTab]);
 
-  // Audio player effects
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
-  }, [volume]);
-
-  useEffect(() => {
-    if (audioRef.current && currentTrack?.audioUrl) {
-      if (isPlaying) {
-        audioRef.current.src = currentTrack.audioUrl;
-        audioRef.current.play().catch(err => console.error('Playback failed:', err));
-      } else {
-        audioRef.current.pause();
-      }
-    }
-  }, [currentTrack, isPlaying]);
-
-  // Track progress
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const updateProgress = () => {
-      const progressPercent = (audio.currentTime / audio.duration) * 100;
-      setProgress(isNaN(progressPercent) ? 0 : progressPercent);
-    };
-
-    const handleEnded = () => {
-      if (repeatMode === 'one') {
-        audio.currentTime = 0;
-        audio.play();
-      } else {
-        handleNext();
-      }
-    };
-
-    audio.addEventListener('timeupdate', updateProgress);
-    audio.addEventListener('ended', handleEnded);
-
-    return () => {
-      audio.removeEventListener('timeupdate', updateProgress);
-      audio.removeEventListener('ended', handleEnded);
-    };
-  }, [repeatMode, handleNext]);
-
   const handlePlayTrack = (track: Song) => {
     setCurrentTrack(track);
     setIsLiked(track.liked);
@@ -186,6 +140,52 @@ export default function InfinityMusicPlayer() {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // Audio player effects
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
+  useEffect(() => {
+    if (audioRef.current && currentTrack?.audioUrl) {
+      if (isPlaying) {
+        audioRef.current.src = currentTrack.audioUrl;
+        audioRef.current.play().catch(err => console.error('Playback failed:', err));
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [currentTrack, isPlaying]);
+
+  // Track progress
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const updateProgress = () => {
+      const progressPercent = (audio.currentTime / audio.duration) * 100;
+      setProgress(isNaN(progressPercent) ? 0 : progressPercent);
+    };
+
+    const handleEnded = () => {
+      if (repeatMode === 'one') {
+        audio.currentTime = 0;
+        audio.play();
+      } else {
+        handleNext();
+      }
+    };
+
+    audio.addEventListener('timeupdate', updateProgress);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', updateProgress);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [repeatMode, handleNext, currentTrack, isPlaying, isShuffle, activeTab, trendingSongs, searchResults, library]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden relative flex flex-col selection:bg-purple-500 selection:text-white">
