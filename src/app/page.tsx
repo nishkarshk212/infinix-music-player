@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play,
@@ -12,64 +12,73 @@ import {
   Volume2,
   VolumeX,
   Heart,
-  Search,
+  Search as SearchIcon,
   Home,
   Library,
-  Settings,
   MoreHorizontal,
-  Share2,
-  Download,
-  Clock,
   User,
-  Music,
-  Disc,
-  ListMusic,
-  Radio
+  Loader2
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { fetchTrendingSongs, searchSongs, type Song } from '@/lib/youtubeMusicApi';
 
 // Utility for cleaner classes
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// --- Types ---
-type Track = {
-  id: number;
-  title: string;
-  artist: string;
-  album: string;
-  duration: string;
-  cover: string;
-  liked: boolean;
-};
-
 type Tab = 'home' | 'search' | 'library';
 
-// --- Mock Data ---
-const MOCK_TRACKS: Track[] = [
-  { id: 1, title: "Neon Horizon", artist: "Synthwave Collective", album: "Cyber Dreams", duration: "3:45", cover: "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=300&auto=format&fit=crop", liked: true },
-  { id: 2, title: "Midnight Drive", artist: "Lazer Boiz", album: "Outrun Nights", duration: "4:12", cover: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?q=80&w=300&auto=format&fit=crop", liked: false },
-  { id: 3, title: "Digital Rain", artist: "Vaporwave God", album: "Ethereal Plaza", duration: "2:58", cover: "https://images.unsplash.com/photo-1493225255756-d9584f8606e9?q=80&w=300&auto=format&fit=crop", liked: true },
-  { id: 4, title: "Binary Sunset", artist: "Retro Girl", album: "80's Future", duration: "3:21", cover: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=300&auto=format&fit=crop", liked: false },
-  { id: 5, title: "Chrome Hearts", artist: "Steel Pulse", album: "Metal Veins", duration: "5:01", cover: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=300&auto=format&fit=crop", liked: true },
-];
-
 const CATEGORIES = ["All", "Synthwave", "Chill", "Rock", "Pop", "Jazz"];
-
-// --- Components ---
 
 export default function InfinityMusicPlayer() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [currentTrack, setCurrentTrack] = useState<Track>(MOCK_TRACKS[0]);
+  const [currentTrack, setCurrentTrack] = useState<Song | null>(null);
   const [volume, setVolume] = useState<number>(0.7);
   const [progress, setProgress] = useState<number>(0);
   const [isShuffle, setIsShuffle] = useState<boolean>(false);
   const [repeatMode, setRepeatMode] = useState<'none' | 'all' | 'one'>('none');
   const [showFullPlayer, setShowFullPlayer] = useState<boolean>(false);
-  const [isLiked, setIsLiked] = useState<boolean>(MOCK_TRACKS[0].liked);
+  const [isLiked, setIsLiked] = useState<boolean>(false);
+  const [trendingSongs, setTrendingSongs] = useState<Song[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<Song[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [searching, setSearching] = useState<boolean>(false);
+  const [library, setLibrary] = useState<Song[]>([]);
+
+  // Fetch trending songs on mount
+  useEffect(() => {
+    const loadTrending = async () => {
+      setLoading(true);
+      const songs = await fetchTrendingSongs();
+      setTrendingSongs(songs);
+      if (songs.length > 0 && !currentTrack) {
+        setCurrentTrack(songs[0]);
+        setIsLiked(songs[0].liked);
+      }
+      setLoading(false);
+    };
+    loadTrending();
+  }, []);
+
+  // Search songs
+  useEffect(() => {
+    if (activeTab === 'search' && searchQuery.trim()) {
+      const search = async () => {
+        setSearching(true);
+        const results = await searchSongs(searchQuery);
+        setSearchResults(results);
+        setSearching(false);
+      };
+      const timeoutId = setTimeout(search, 300);
+      return () => clearTimeout(timeoutId);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery, activeTab]);
 
   // Simulate progress bar
   useEffect(() => {
@@ -88,7 +97,7 @@ export default function InfinityMusicPlayer() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  const handlePlayTrack = (track: typeof MOCK_TRACKS[0]) => {
+  const handlePlayTrack = (track: Song) => {
     setCurrentTrack(track);
     setIsLiked(track.liked);
     setProgress(0);
@@ -97,15 +106,40 @@ export default function InfinityMusicPlayer() {
   };
 
   const handleNext = () => {
-    const currentIndex = MOCK_TRACKS.findIndex(t => t.id === currentTrack.id);
-    const nextIndex = (currentIndex + 1) % MOCK_TRACKS.length;
-    handlePlayTrack(MOCK_TRACKS[nextIndex]);
+    const allSongs = activeTab === 'home' ? trendingSongs : activeTab === 'search' ? searchResults : library;
+    if (allSongs.length === 0) return;
+    
+    let nextIndex = 0;
+    if (currentTrack) {
+      const currentIndex = allSongs.findIndex(t => t.id === currentTrack.id);
+      if (isShuffle) {
+        nextIndex = Math.floor(Math.random() * allSongs.length);
+      } else {
+        nextIndex = (currentIndex + 1) % allSongs.length;
+      }
+    }
+    handlePlayTrack(allSongs[nextIndex]);
   };
 
   const handlePrev = () => {
-    const currentIndex = MOCK_TRACKS.findIndex(t => t.id === currentTrack.id);
-    const prevIndex = (currentIndex - 1 + MOCK_TRACKS.length) % MOCK_TRACKS.length;
-    handlePlayTrack(MOCK_TRACKS[prevIndex]);
+    const allSongs = activeTab === 'home' ? trendingSongs : activeTab === 'search' ? searchResults : library;
+    if (allSongs.length === 0 || !currentTrack) return;
+    
+    const currentIndex = allSongs.findIndex(t => t.id === currentTrack.id);
+    const prevIndex = (currentIndex - 1 + allSongs.length) % allSongs.length;
+    handlePlayTrack(allSongs[prevIndex]);
+  };
+
+  const toggleLike = () => {
+    if (!currentTrack) return;
+    
+    setIsLiked(!isLiked);
+    
+    if (!isLiked && !library.find(s => s.id === currentTrack.id)) {
+      setLibrary([...library, { ...currentTrack, liked: true }]);
+    } else if (isLiked) {
+      setLibrary(library.filter(s => s.id !== currentTrack.id));
+    }
   };
 
   return (
@@ -123,33 +157,48 @@ export default function InfinityMusicPlayer() {
           {activeTab === 'home' && (
             <HomeView 
               key="home"
+              songs={trendingSongs}
+              loading={loading}
               onPlayTrack={handlePlayTrack} 
             />
           )}
           {activeTab === 'search' && (
-            <SearchView key="search" />
+            <SearchView 
+              key="search"
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              searchResults={searchResults}
+              searching={searching}
+              onPlayTrack={handlePlayTrack}
+            />
           )}
           {activeTab === 'library' && (
-            <LibraryView key="library" onPlayTrack={handlePlayTrack} />
+            <LibraryView 
+              key="library"
+              songs={library}
+              onPlayTrack={handlePlayTrack}
+            />
           )}
         </AnimatePresence>
       </div>
 
       {/* --- Mini Player / Bottom Bar --- */}
-      <MiniPlayer 
-        track={currentTrack}
-        isPlaying={isPlaying}
-        progress={progress}
-        onPlay={() => setIsPlaying(!isPlaying)}
-        onClick={() => setShowFullPlayer(true)}
-      />
+      {currentTrack && (
+        <MiniPlayer 
+          track={currentTrack}
+          isPlaying={isPlaying}
+          progress={progress}
+          onPlay={() => setIsPlaying(!isPlaying)}
+          onClick={() => setShowFullPlayer(true)}
+        />
+      )}
 
       {/* --- Navigation Bar --- */}
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* --- Full Screen Player Overlay --- */}
       <AnimatePresence>
-        {showFullPlayer && (
+        {showFullPlayer && currentTrack && (
           <FullPlayer 
             track={currentTrack}
             isPlaying={isPlaying}
@@ -162,7 +211,7 @@ export default function InfinityMusicPlayer() {
             onNext={handleNext}
             onPrev={handlePrev}
             onClose={() => setShowFullPlayer(false)}
-            onToggleLike={() => setIsLiked(!isLiked)}
+            onToggleLike={toggleLike}
             onToggleShuffle={() => setIsShuffle(!isShuffle)}
             onToggleRepeat={() => setRepeatMode(m => m === 'none' ? 'all' : m === 'all' ? 'one' : 'none')}
             onSeek={(p) => setProgress(p)}
@@ -176,7 +225,7 @@ export default function InfinityMusicPlayer() {
 
 // --- Views ---
 
-function HomeView({ onPlayTrack }: { onPlayTrack: (track: Track) => void }) {
+function HomeView({ songs, loading, onPlayTrack }: { songs: Song[], loading: boolean, onPlayTrack: (track: Song) => void }) {
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
 
   return (
@@ -215,86 +264,106 @@ function HomeView({ onPlayTrack }: { onPlayTrack: (track: Track) => void }) {
         ))}
       </div>
 
-      {/* Featured Album */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent z-10 rounded-3xl" />
-        <div className="h-64 w-full rounded-3xl overflow-hidden relative group">
-           <img 
-             src={MOCK_TRACKS[0].cover} 
-             alt="Featured" 
-             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-           />
-           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-purple-900/30 to-transparent" />
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-10 h-10 animate-spin text-purple-500" />
         </div>
-        <div className="absolute bottom-6 left-6 right-6 z-20">
-           <span className="text-xs font-bold uppercase tracking-widest text-purple-300 mb-2 block">Featured Playlist</span>
-           <h3 className="text-3xl font-black mb-4">Neon Nights Collection</h3>
-           <button 
-             onClick={() => onPlayTrack(MOCK_TRACKS[0])}
-             className="bg-white text-slate-900 px-6 py-2 rounded-full font-bold flex items-center gap-2 hover:scale-105 transition-transform"
-           >
-             <Play size={20} fill="currentColor" /> Play Now
-           </button>
-        </div>
-      </div>
-
-      {/* Trending Section */}
-      <div>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold">Trending Now</h3>
-          <button className="text-purple-400 text-sm font-medium">See All</button>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          {MOCK_TRACKS.slice(0, 4).map((track, i) => (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
-              key={track.id}
-              className="group cursor-pointer"
-              onClick={() => onPlayTrack(track)}
-            >
-              <div className="relative aspect-square rounded-2xl overflow-hidden mb-3">
-                 <img src={track.cover} alt={track.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                 <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <div className="h-12 w-12 rounded-full bg-green-500 flex items-center justify-center shadow-xl shadow-green-500/50 transform translate-y-4 group-hover:translate-y-0 transition-transform">
-                       <Play size={24} fill="black" className="ml-1" />
-                    </div>
-                 </div>
+      ) : (
+        <>
+          {/* Featured Album */}
+          {songs.length > 0 && (
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent z-10 rounded-3xl" />
+              <div className="h-64 w-full rounded-3xl overflow-hidden relative group">
+                 <img 
+                   src={songs[0].cover} 
+                   alt="Featured" 
+                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                 />
+                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-purple-900/30 to-transparent" />
               </div>
-              <h4 className="font-semibold truncate">{track.title}</h4>
-              <p className="text-sm text-slate-400 truncate">{track.artist}</p>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recently Played List */}
-      <div className="pb-8">
-        <h3 className="text-xl font-bold mb-4">Recently Played</h3>
-        <div className="space-y-4">
-          {MOCK_TRACKS.map((track) => (
-            <div 
-              key={track.id} 
-              className="flex items-center gap-4 group cursor-pointer p-2 rounded-xl hover:bg-white/5 transition-colors"
-              onClick={() => onPlayTrack(track)}
-            >
-              <img src={track.cover} alt={track.title} className="w-14 h-14 rounded-lg object-cover" />
-              <div className="flex-1 min-w-0">
-                <h4 className="font-semibold truncate group-hover:text-purple-400 transition-colors">{track.title}</h4>
-                <p className="text-sm text-slate-400 truncate">{track.artist}</p>
+              <div className="absolute bottom-6 left-6 right-6 z-20">
+                 <span className="text-xs font-bold uppercase tracking-widest text-purple-300 mb-2 block">Featured Playlist</span>
+                 <h3 className="text-3xl font-black mb-4 truncate">{songs[0].title}</h3>
+                 <button 
+                   onClick={() => onPlayTrack(songs[0])}
+                   className="bg-white text-slate-900 px-6 py-2 rounded-full font-bold flex items-center gap-2 hover:scale-105 transition-transform"
+                 >
+                   <Play size={20} fill="currentColor" /> Play Now
+                 </button>
               </div>
-              <div className="text-sm text-slate-500 font-medium">{track.duration}</div>
-              <Heart size={18} className={cn("text-slate-500 hover:text-white transition-colors", track.liked && "fill-red-500 text-red-500")} />
             </div>
-          ))}
-        </div>
-      </div>
+          )}
+
+          {/* Trending Section */}
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">Trending Now</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {songs.slice(0, 4).map((song, i) => (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  key={song.id}
+                  className="group cursor-pointer"
+                  onClick={() => onPlayTrack(song)}
+                >
+                  <div className="relative aspect-square rounded-2xl overflow-hidden mb-3">
+                     <img src={song.cover} alt={song.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="h-12 w-12 rounded-full bg-green-500 flex items-center justify-center shadow-xl shadow-green-500/50 transform translate-y-4 group-hover:translate-y-0 transition-transform">
+                           <Play size={24} fill="black" className="ml-1" />
+                        </div>
+                     </div>
+                  </div>
+                  <h4 className="font-semibold truncate">{song.title}</h4>
+                  <p className="text-sm text-slate-400 truncate">{song.artist}</p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recently Played List */}
+          <div className="pb-8">
+            <h3 className="text-xl font-bold mb-4">All Songs</h3>
+            <div className="space-y-4">
+              {songs.map((song) => (
+                <div 
+                  key={song.id} 
+                  className="flex items-center gap-4 group cursor-pointer p-2 rounded-xl hover:bg-white/5 transition-colors"
+                  onClick={() => onPlayTrack(song)}
+                >
+                  <img src={song.cover} alt={song.title} className="w-14 h-14 rounded-lg object-cover" />
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold truncate group-hover:text-purple-400 transition-colors">{song.title}</h4>
+                    <p className="text-sm text-slate-400 truncate">{song.artist}</p>
+                  </div>
+                  <div className="text-sm text-slate-500 font-medium">{song.duration}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </motion.div>
   );
 }
 
-function SearchView() {
+function SearchView({ 
+  searchQuery, 
+  setSearchQuery, 
+  searchResults, 
+  searching, 
+  onPlayTrack 
+}: { 
+  searchQuery: string; 
+  setSearchQuery: (q: string) => void; 
+  searchResults: Song[]; 
+  searching: boolean; 
+  onPlayTrack: (track: Song) => void; 
+}) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }} 
@@ -303,30 +372,59 @@ function SearchView() {
     >
       <h2 className="text-2xl font-bold pt-4">Search</h2>
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
         <input 
           type="text" 
           placeholder="What do you want to listen to?"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full bg-white/10 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
         />
       </div>
       
-      <div className="space-y-4">
-        <h3 className="text-lg font-bold">Top Genres</h3>
-        <div className="grid grid-cols-2 gap-3">
-           {["Synthwave", "Pop", "Hip Hop", "Rock", "Jazz", "Classical"].map((genre, i) => (
-             <div key={genre} className="h-20 rounded-xl bg-gradient-to-br from-purple-600/40 to-blue-600/40 flex items-center p-4 relative overflow-hidden group cursor-pointer border border-white/10">
-                <span className="font-bold text-lg z-10">{genre}</span>
-                <div className="absolute right-0 bottom-0 w-24 h-24 bg-white/10 rounded-full translate-x-8 translate-y-8 group-hover:scale-110 transition-transform" />
-             </div>
-           ))}
+      {searching ? (
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
         </div>
-      </div>
+      ) : searchResults.length > 0 ? (
+        <div className="space-y-2">
+          {searchResults.map((song) => (
+            <div 
+              key={song.id} 
+              className="p-4 bg-white/5 rounded-xl border border-white/5 flex items-center gap-4 hover:bg-white/10 transition-colors cursor-pointer"
+              onClick={() => onPlayTrack(song)}
+            >
+              <img src={song.cover} alt={song.title} className="w-14 h-14 rounded-lg object-cover" />
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold truncate">{song.title}</h4>
+                <p className="text-sm text-slate-400 truncate">{song.artist}</p>
+              </div>
+              <Play size={24} className="text-green-400" />
+            </div>
+          ))}
+        </div>
+      ) : searchQuery.trim() ? (
+        <div className="text-center text-slate-500 pt-8">
+          No results found for "{searchQuery}"
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <h3 className="text-lg font-bold">Top Genres</h3>
+          <div className="grid grid-cols-2 gap-3">
+             {["Synthwave", "Pop", "Hip Hop", "Rock", "Jazz", "Classical"].map((genre, i) => (
+               <div key={genre} className="h-20 rounded-xl bg-gradient-to-br from-purple-600/40 to-blue-600/40 flex items-center p-4 relative overflow-hidden group cursor-pointer border border-white/10">
+                  <span className="font-bold text-lg z-10">{genre}</span>
+                  <div className="absolute right-0 bottom-0 w-24 h-24 bg-white/10 rounded-full translate-x-8 translate-y-8 group-hover:scale-110 transition-transform" />
+               </div>
+             ))}
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
 
-function LibraryView({ onPlayTrack }: { onPlayTrack: (track: Track) => void }){
+function LibraryView({ songs, onPlayTrack }: { songs: Song[], onPlayTrack: (track: Song) => void }){
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }} 
@@ -334,18 +432,26 @@ function LibraryView({ onPlayTrack }: { onPlayTrack: (track: Track) => void }){
       className="flex-1 overflow-y-auto p-6 space-y-6"
     >
       <h2 className="text-2xl font-bold pt-4">Your Library</h2>
-      <div className="space-y-2">
-        {MOCK_TRACKS.map(t => (
-          <div key={t.id} className="p-4 bg-white/5 rounded-xl border border-white/5 flex items-center gap-4 hover:bg-white/10 transition-colors">
-            <img src={t.cover} alt={t.title} className="w-14 h-14 rounded-lg object-cover" />
-            <div className="flex-1 min-w-0">
-              <h4 className="font-semibold truncate">{t.title}</h4>
-              <p className="text-sm text-slate-400 truncate">{t.artist}</p>
+      {songs.length === 0 ? (
+        <div className="text-center text-slate-500 pt-16">
+          <Heart size={48} className="mx-auto mb-4 text-slate-700" />
+          <p>No liked songs yet</p>
+          <p className="text-sm">Like some songs to add them to your library!</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {songs.map((song) => (
+            <div key={song.id} className="p-4 bg-white/5 rounded-xl border border-white/5 flex items-center gap-4 hover:bg-white/10 transition-colors cursor-pointer" onClick={() => onPlayTrack(song)}>
+              <img src={song.cover} alt={song.title} className="w-14 h-14 rounded-lg object-cover" />
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold truncate">{song.title}</h4>
+                <p className="text-sm text-slate-400 truncate">{song.artist}</p>
+              </div>
+              <Play size={24} className="text-green-400" />
             </div>
-            <Play size={24} className="text-green-400" />
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -359,7 +465,7 @@ function MiniPlayer({
   onPlay, 
   onClick 
 }: { 
-  track: Track; 
+  track: Song; 
   isPlaying: boolean; 
   progress: number; 
   onPlay: () => void; 
@@ -403,7 +509,7 @@ function BottomNav({
       <div className="flex justify-around items-center">
         {[ 
           { id: 'home', icon: Home, label: 'Home' },
-          { id: 'search', icon: Search, label: 'Search' },
+          { id: 'search', icon: SearchIcon, label: 'Search' },
           { id: 'library', icon: Library, label: 'Library' },
         ].map((item) => (
           <button 
@@ -441,7 +547,7 @@ function FullPlayer({
   onSeek,
   onVolumeChange
 }: {
-  track: typeof MOCK_TRACKS[0];
+  track: Song;
   isPlaying: boolean;
   progress: number;
   isLiked: boolean;
