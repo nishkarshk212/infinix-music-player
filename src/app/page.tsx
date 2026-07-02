@@ -34,8 +34,21 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// --- Types ---
+type Track = {
+  id: number;
+  title: string;
+  artist: string;
+  album: string;
+  duration: string;
+  cover: string;
+  liked: boolean;
+};
+
+type Tab = 'home' | 'search' | 'library';
+
 // --- Mock Data ---
-const MOCK_TRACKS = [
+const MOCK_TRACKS: Track[] = [
   { id: 1, title: "Neon Horizon", artist: "Synthwave Collective", album: "Cyber Dreams", duration: "3:45", cover: "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=300&auto=format&fit=crop", liked: true },
   { id: 2, title: "Midnight Drive", artist: "Lazer Boiz", album: "Outrun Nights", duration: "4:12", cover: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?q=80&w=300&auto=format&fit=crop", liked: false },
   { id: 3, title: "Digital Rain", artist: "Vaporwave God", album: "Ethereal Plaza", duration: "2:58", cover: "https://images.unsplash.com/photo-1493225255756-d9584f8606e9?q=80&w=300&auto=format&fit=crop", liked: true },
@@ -48,15 +61,15 @@ const CATEGORIES = ["All", "Synthwave", "Chill", "Rock", "Pop", "Jazz"];
 // --- Components ---
 
 export default function InfinityMusicPlayer() {
-  const [activeTab, setActiveTab] = useState('home');
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState(MOCK_TRACKS[0]);
-  const [volume, setVolume] = useState(0.7);
-  const [progress, setProgress] = useState(0);
-  const [isShuffle, setIsShuffle] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [currentTrack, setCurrentTrack] = useState<Track>(MOCK_TRACKS[0]);
+  const [volume, setVolume] = useState<number>(0.7);
+  const [progress, setProgress] = useState<number>(0);
+  const [isShuffle, setIsShuffle] = useState<boolean>(false);
   const [repeatMode, setRepeatMode] = useState<'none' | 'all' | 'one'>('none');
-  const [showFullPlayer, setShowFullPlayer] = useState(false);
-  const [isLiked, setIsLiked] = useState(MOCK_TRACKS[0].liked);
+  const [showFullPlayer, setShowFullPlayer] = useState<boolean>(false);
+  const [isLiked, setIsLiked] = useState<boolean>(MOCK_TRACKS[0].liked);
 
   // Simulate progress bar
   useEffect(() => {
@@ -164,7 +177,7 @@ export default function InfinityMusicPlayer() {
 
 // --- Views ---
 
-function HomeView({ onPlayTrack }: { onPlayTrack: (t: any) => void }) {
+function HomeView({ onPlayTrack }: { onPlayTrack: (track: Track) => void }) {
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
 
   return (
@@ -314,7 +327,7 @@ function SearchView() {
   );
 }
 
-function LibraryView({ onPlayTrack }: { onPlayTrack: (t: any) => void }){
+function LibraryView({ onPlayTrack }: { onPlayTrack: (track: Track) => void }){
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }} 
@@ -340,7 +353,19 @@ function LibraryView({ onPlayTrack }: { onPlayTrack: (t: any) => void }){
 
 // --- Components ---
 
-function MiniPlayer({ track, isPlaying, progress, onPlay, onNext, onClick }) {
+function MiniPlayer({ 
+  track, 
+  isPlaying, 
+  progress, 
+  onPlay, 
+  onClick 
+}: { 
+  track: Track; 
+  isPlaying: boolean; 
+  progress: number; 
+  onPlay: () => void; 
+  onClick: () => void; 
+}) {
   return (
     <div className="absolute bottom-16 left-4 right-4 z-20">
       <div 
@@ -367,7 +392,13 @@ function MiniPlayer({ track, isPlaying, progress, onPlay, onNext, onClick }) {
   );
 }
 
-function BottomNav({ activeTab, setActiveTab }) {
+function BottomNav({ 
+  activeTab, 
+  setActiveTab 
+}: { 
+  activeTab: Tab; 
+  setActiveTab: (tab: Tab) => void; 
+}) {
   return (
     <div className="absolute bottom-0 left-0 right-0 bg-slate-950/80 backdrop-blur-2xl border-t border-white/5 px-6 pb-6 pt-4 z-30">
       <div className="flex justify-around items-center">
@@ -378,7 +409,7 @@ function BottomNav({ activeTab, setActiveTab }) {
         ].map((item) => (
           <button 
             key={item.id} 
-            onClick={() => setActiveTab(item.id)}
+            onClick={() => setActiveTab(item.id as Tab)}
             className={cn(
               "flex flex-col items-center gap-1 transition-all duration-300",
               activeTab === item.id ? "text-white" : "text-slate-500"
