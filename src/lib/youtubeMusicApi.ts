@@ -9,9 +9,11 @@ export interface Song {
   duration: string;
   cover: string;
   liked: boolean;
+  audioUrl?: string;
+  videoId?: string;
 }
 
-// Mock data for demonstration
+// Mock data with free audio samples for demonstration
 const MOCK_SONGS: Song[] = [
   {
     id: '1',
@@ -20,7 +22,8 @@ const MOCK_SONGS: Song[] = [
     album: 'Cyber Dreams',
     duration: '3:45',
     cover: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=300&auto=format&fit=crop',
-    liked: true
+    liked: true,
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
   },
   {
     id: '2',
@@ -29,7 +32,8 @@ const MOCK_SONGS: Song[] = [
     album: 'Outrun Nights',
     duration: '4:12',
     cover: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?q=80&w=300&auto=format&fit=crop',
-    liked: false
+    liked: false,
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3'
   },
   {
     id: '3',
@@ -38,7 +42,8 @@ const MOCK_SONGS: Song[] = [
     album: 'Ethereal Plaza',
     duration: '2:58',
     cover: 'https://images.unsplash.com/photo-1493225620780-dba8ba36b745?q=80&w=300&auto=format&fit=crop',
-    liked: true
+    liked: true,
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3'
   },
   {
     id: '4',
@@ -47,7 +52,8 @@ const MOCK_SONGS: Song[] = [
     album: '80\'s Future',
     duration: '3:21',
     cover: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=300&auto=format&fit=crop',
-    liked: false
+    liked: false,
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3'
   },
   {
     id: '5',
@@ -56,7 +62,8 @@ const MOCK_SONGS: Song[] = [
     album: 'Metal Veins',
     duration: '5:01',
     cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=300&auto=format&fit=crop',
-    liked: true
+    liked: true,
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3'
   }
 ];
 
@@ -66,14 +73,15 @@ export const fetchTrendingSongs = async (): Promise<Song[]> => {
     const response = await fetch(`${API_BASE_URL}/trending?key=${API_KEY}`);
     if (response.ok) {
       const data = await response.json();
-      return data.map((song: any) => ({
+      return data.map((song: any, index: number) => ({
         id: song.id || song.videoId,
         title: song.title,
         artist: song.artists || song.artist,
         album: song.album || 'Unknown Album',
         duration: song.duration || '3:00',
         cover: song.thumbnail || song.cover || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=300&auto=format&fit=crop',
-        liked: false
+        liked: false,
+        audioUrl: MOCK_SONGS[index % MOCK_SONGS.length].audioUrl
       }));
     }
   } catch (error) {
@@ -90,14 +98,15 @@ export const searchSongs = async (query: string): Promise<Song[]> => {
     const response = await fetch(`${API_BASE_URL}/search?query=${encodeURIComponent(query)}&key=${API_KEY}`);
     if (response.ok) {
       const data = await response.json();
-      return data.map((song: any) => ({
+      return data.map((song: any, index: number) => ({
         id: song.id || song.videoId,
         title: song.title,
         artist: song.artists || song.artist,
         album: song.album || 'Unknown Album',
         duration: song.duration || '3:00',
         cover: song.thumbnail || song.cover || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=300&auto=format&fit=crop',
-        liked: false
+        liked: false,
+        audioUrl: MOCK_SONGS[index % MOCK_SONGS.length].audioUrl
       }));
     }
   } catch (error) {

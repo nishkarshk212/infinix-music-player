@@ -48,6 +48,7 @@ export default function InfinityMusicPlayer() {
   const [loading, setLoading] = useState<boolean>(true);
   const [searching, setSearching] = useState<boolean>(false);
   const [library, setLibrary] = useState<Song[]>([]);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   // Fetch trending songs on mount
   useEffect(() => {
@@ -80,22 +81,51 @@ export default function InfinityMusicPlayer() {
     }
   }, [searchQuery, activeTab]);
 
-  // Simulate progress bar
+  // Audio player effects
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            handleNext();
-            return 0;
-          }
-          return prev + 0.5;
-        });
-      }, 1000);
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
     }
-    return () => clearInterval(interval);
-  }, [isPlaying]);
+  }, [volume]);
+
+  useEffect(() => {
+    if (audioRef.current && currentTrack?.audioUrl) {
+      if (isPlaying) {
+        audioRef.current.src = currentTrack.audioUrl;
+        audioRef.current.play().catch(err => console.error('Playback failed:', err));
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [currentTrack, isPlaying]);
+
+  // Track progress
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const updateProgress = () => {
+      const progressPercent = (audio.currentTime / audio.duration) * 100;
+      setProgress(isNaN(progressPercent) ? 0 : progressPercent);
+    };
+
+    const handleEnded = () => {
+      if (repeatMode === 'one') {
+        audio.currentTime = 0;
+        audio.play();
+      } else {
+        handleNext();
+      }
+    };
+
+    audio.addEventListener('timeupdate', updateProgress);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', updateProgress);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [repeatMode, handleNext]);
 
   const handlePlayTrack = (track: Song) => {
     setCurrentTrack(track);
@@ -142,6 +172,21 @@ export default function InfinityMusicPlayer() {
     }
   };
 
+  const handleSeek = (value: number) => {
+    if (audioRef.current && currentTrack) {
+      const seekTime = (value / 100) * audioRef.current.duration;
+      audioRef.current.currentTime = seekTime;
+      setProgress(value);
+    }
+  };
+
+  const formatTime = (seconds: number): string => {
+    if (isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden relative flex flex-col selection:bg-purple-500 selection:text-white">
       {/* --- Background Gradients & Effects --- */}
@@ -150,6 +195,9 @@ export default function InfinityMusicPlayer() {
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150" />
       </div>
+
+      {/* --- Audio Element --- */}
+      <audio ref={audioRef} />
 
       {/* --- Main Content --- */}
       <div className="relative z-10 flex-1 flex flex-col h-screen pb-24">
@@ -207,6 +255,8 @@ export default function InfinityMusicPlayer() {
             isShuffle={isShuffle}
             repeatMode={repeatMode}
             volume={volume}
+            audioRef={audioRef}
+            formatTime={formatTime}
             onTogglePlay={() => setIsPlaying(!isPlaying)}
             onNext={handleNext}
             onPrev={handlePrev}
@@ -214,7 +264,7 @@ export default function InfinityMusicPlayer() {
             onToggleLike={toggleLike}
             onToggleShuffle={() => setIsShuffle(!isShuffle)}
             onToggleRepeat={() => setRepeatMode(m => m === 'none' ? 'all' : m === 'all' ? 'one' : 'none')}
-            onSeek={(p) => setProgress(p)}
+            onSeek={handleSeek}
             onVolumeChange={(v) => setVolume(v)}
           />
         )}
@@ -537,6 +587,8 @@ function FullPlayer({
   isShuffle,
   repeatMode,
   volume,
+  audioRef,
+  formatTime,
   onTogglePlay,
   onNext,
   onPrev,
@@ -554,6 +606,8 @@ function FullPlayer({
   isShuffle: boolean;
   repeatMode: 'none' | 'all' | 'one';
   volume: number;
+  audioRef: React.RefObject<HTMLAudioElement>;
+  formatTime: (seconds: number) => string;
   onTogglePlay: () => void;
   onNext: () => void;
   onPrev: () => void;
@@ -575,6 +629,9 @@ function FullPlayer({
     setIsDragging(false);
     onSeek(localProgress);
   };
+
+  const currentTime = audioRef.current?.currentTime || 0;
+  const duration = audioRef.current?.duration || 0;
 
   return (
     <motion.div 
@@ -653,8 +710,8 @@ function FullPlayer({
              />
           </div>
           <div className="flex justify-between text-xs text-slate-400 mt-2 font-medium">
-            <span>1:23</span>
-            <span>3:45</span>
+            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(duration)}</span>
           </div>
         </div>
 
@@ -694,7 +751,16 @@ function FullPlayer({
         <div className="flex items-center gap-3 mb-8">
           {volume === 0 ? <VolumeX size={20} className="text-slate-400" /> : <Volume2 size={20} className="text-slate-400" />}
           <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full bg-white/50 rounded-full" style={{ width: `${volume * 100}%` }} />
+            <input 
+              type="range" 
+              min="0" 
+              max="1" 
+              step="0.01" 
+              value={volume} 
+              onChange={(e) => onVolumeChange(Number(e.target.value))} 
+              className="w-full h-full opacity-0 absolute cursor-pointer" 
+            />
+            <div className="h-full bg-white/50 rounded-full pointer-events-none" style={{ width: `${volume * 100}%` }} />
           </div>
         </div>
       </div>
