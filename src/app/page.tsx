@@ -141,7 +141,6 @@ export default function InfinityMusicPlayer() {
         isPlaying={isPlaying}
         progress={progress}
         onPlay={() => setIsPlaying(!isPlaying)}
-        onNext={handleNext}
         onClick={() => setShowFullPlayer(true)}
       />
 
